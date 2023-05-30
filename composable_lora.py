@@ -329,11 +329,7 @@ def apply_composable_lora(lora_layer_name, m_lora, module, m_type: str, patch, a
                     custom_scope["is_negative"] = True
                     res = composable_lycoris.composable_forward(module, patch, alpha, multiplier, res)
 
-            if lora_layer_name.endswith("_11_mlp_fc2"):  # last lora_layer_name of text_model_encoder
-                text_model_encoder_counter += 1
-                # c1 c1 c2 c2 .. .. uc uc
-                if text_model_encoder_counter == (len(prompt_loras) + num_batches) * num_loras:
-                    text_model_encoder_counter = 0
+            composable_lycoris.check_lycoris_end_layer(lora_layer_name, res, num_loras)
 
         elif lora_layer_name.startswith("diffusion_model_"):  # "diffusion_model_"
 
@@ -402,18 +398,14 @@ def apply_composable_lora(lora_layer_name, m_lora, module, m_type: str, patch, a
                             multiplier *= composable_lycoris.lycoris_get_multiplier_normalized(m_lora, lora_layer_name)
                         res = composable_lycoris.composable_forward(module, patch, alpha, multiplier, res)
 
-                if lora_layer_name.endswith("_11_1_proj_out"):  # last lora_layer_name of diffusion_model
-                    diffusion_model_counter += cur_num_prompts
-                    # c1 c2 .. uc
-                    if diffusion_model_counter >= (len(prompt_loras) + num_batches) * num_loras:
-                        diffusion_model_counter = 0
-                        add_step_counters()
+            composable_lycoris.check_lycoris_end_layer(lora_layer_name, res, num_loras)
         else:
             # default
             multiplier = composable_lycoris.lycoris_get_multiplier(m_lora, lora_layer_name)
             if multiplier != 0.0:
                 # print(f"default {lora_layer_name} lora.name={m_lora_name} lora.mul={m_lora.multiplier}")
                 res = composable_lycoris.composable_forward(module, patch, alpha, multiplier, res)
+            composable_lycoris.check_lycoris_end_layer(lora_layer_name, res, num_loras)
     else:
         # default
         multiplier = composable_lycoris.lycoris_get_multiplier(m_lora, lora_layer_name)
