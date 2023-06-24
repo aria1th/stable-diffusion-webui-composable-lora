@@ -44,6 +44,9 @@ https://github.com/a2569875/stable-diffusion-webui-composable-lora.git
 
 (Note: You should enable \[`Lora: use old method that takes longer when you have multiple Loras active and produces same results as kohya-ss/sd-webui-additional-networks extension`\] in setting page.)
 
+另一次测试于2023年6月24日完成，使用Stable Diffusion WebUI版本为[v1.4.0-RC (baf6946)](https://github.com/AUTOMATIC1111/stable-diffusion-webui/commit/baf6946e06249c5af9851c60171692c44ef633e0)。 测试中使用了自行训练的春姬LoCon模型和C站下载的[onimaiCharactersLora](https://civitai.com/models/10767/onimai-characters-lora)模型。
+![](readme/fig12.png)
+
 ## 功能
 ### 与 Composable-Diffusion 兼容
 将 LoRA 在提示词中的插入位置与`AND`语法相关系，让 LoRA 的影响范围限制在特定的子提示词中 (特定 AND...AND区块中)。

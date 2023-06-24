@@ -45,6 +45,9 @@ This test was conducted on May 14, 2023, using Stable Diffusion WebUI version [v
 
 (Note: You should enable \[`Lora: use old method that takes longer when you have multiple Loras active and produces same results as kohya-ss/sd-webui-additional-networks extension`\] in setting page.)
 
+Another test was conducted on June 24, 2023, using Stable Diffusion WebUI version [v1.4.0-RC (baf6946)](https://github.com/AUTOMATIC1111/stable-diffusion-webui/commit/baf6946e06249c5af9851c60171692c44ef633e0). Using one sanjouno haruhime locon model that I trained myself and one [onimaiCharactersLora](https://civitai.com/models/10767/onimai-characters-lora) model downloaded from civitai. 
+![](readme/fig12.png)
+
 ## Features
 ### Compatible with Composable-Diffusion
 By associating LoRA's insertion position in the prompt with `AND` syntax, LoRA's scope of influence is limited to a specific subprompt.

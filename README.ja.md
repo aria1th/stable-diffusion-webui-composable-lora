@@ -45,6 +45,9 @@ https://github.com/a2569875/stable-diffusion-webui-composable-lora.git
 
 (Note: You should enable \[`Lora: use old method that takes longer when you have multiple Loras active and produces same results as kohya-ss/sd-webui-additional-networks extension`\] in setting page.)
 
+2023年6月24日、Stable Diffusion WebUIバージョン[v1.4.0-RC (baf6946)](https://github.com/AUTOMATIC1111/stable-diffusion-webui/commit/baf6946e06249c5af9851c60171692c44ef633e0)を使用して、もう一つのテストが行われました。私自身が訓練したサンジョウノ・春姫のLoConモデルと、civitaiからダウンロードした[onimaiCharactersLora](https://civitai.com/models/10767/onimai-characters-lora)モデルの両方を使用しました。
+![](readme/fig12.png)
+
 ## 機能
 ### Composable-Diffusionと互換性がある
 LoRAの挿入箇所を`AND`構文と関連付け、LoRAの影響範囲を特定のサブプロンプト内に限定します（特定の`AND...AND`ブロック内）。
