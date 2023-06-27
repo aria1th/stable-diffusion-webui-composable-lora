@@ -24,7 +24,11 @@ def on_enable():
             composable_lycoris.backup_MultiheadAttention_forward_before_lyco = torch.nn.MultiheadAttention_forward_before_lyco
         if hasattr(torch.nn, 'MultiheadAttention_load_state_dict_before_lyco'):
             composable_lycoris.backup_MultiheadAttention_load_state_dict_before_lyco = torch.nn.MultiheadAttention_load_state_dict_before_lyco
-
+        if hasattr(composable_lora, 'lyco_notfound'):
+            if composable_lora.lyco_notfound:
+                torch.nn.Linear_forward_before_lyco = composable_lora.Linear_forward_before_clora
+                torch.nn.Conv2d_forward_before_lyco = composable_lora.Conv2d_forward_before_clora
+                torch.nn.MultiheadAttention_forward_before_lyco = composable_lora.MultiheadAttention_forward_before_clora
         torch.nn.Linear.forward = composable_lora.lora_Linear_forward
         torch.nn.Conv2d.forward = composable_lora.lora_Conv2d_forward
         torch.nn.MultiheadAttention.forward = lycoris.lyco_MultiheadAttention_forward

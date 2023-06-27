@@ -15,6 +15,24 @@ def unload():
     torch.nn.Conv2d.forward = torch.nn.Conv2d_forward_before_lora
     torch.nn.MultiheadAttention.forward = torch.nn.MultiheadAttention_forward_before_lora
 
+if not hasattr(composable_lora, 'Linear_forward_before_clora'):
+    if hasattr(torch.nn, 'Linear_forward_before_lyco'):
+        composable_lora.Linear_forward_before_clora = torch.nn.Linear_forward_before_lyco
+    else:
+        composable_lora.Linear_forward_before_clora = torch.nn.Linear.forward
+
+if not hasattr(composable_lora, 'Conv2d_forward_before_clora'):
+    if hasattr(torch.nn, 'Conv2d_forward_before_lyco'):
+        composable_lora.Conv2d_forward_before_clora = torch.nn.Conv2d_forward_before_lyco
+    else:
+        composable_lora.Conv2d_forward_before_clora = torch.nn.Conv2d.forward
+
+if not hasattr(composable_lora, 'MultiheadAttention_forward_before_clora'):
+    if hasattr(torch.nn, 'MultiheadAttention_forward_before_lyco'):
+        composable_lora.MultiheadAttention_forward_before_clora = torch.nn.MultiheadAttention_forward_before_lyco
+    else:
+        composable_lora.MultiheadAttention_forward_before_clora = torch.nn.MultiheadAttention.forward
+
 if not hasattr(torch.nn, 'Linear_forward_before_lora'):
     if hasattr(torch.nn, 'Linear_forward_before_lyco'):
         torch.nn.Linear_forward_before_lora = torch.nn.Linear_forward_before_lyco
@@ -32,6 +50,11 @@ if not hasattr(torch.nn, 'MultiheadAttention_forward_before_lora'):
         torch.nn.MultiheadAttention_forward_before_lora = torch.nn.MultiheadAttention_forward_before_lyco
     else:
         torch.nn.MultiheadAttention_forward_before_lora = torch.nn.MultiheadAttention.forward
+
+if hasattr(torch.nn, 'Linear_forward_before_lyco'):
+    composable_lora.lyco_notfound = False
+else:
+    composable_lora.lyco_notfound = True
 
 torch.nn.Linear.forward = composable_lora.lora_Linear_forward
 torch.nn.Conv2d.forward = composable_lora.lora_Conv2d_forward
