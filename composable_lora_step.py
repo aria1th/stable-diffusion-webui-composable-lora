@@ -277,7 +277,7 @@ def check_lora_weight(controllers : List[LoRA_Controller_Base], test_lora : str,
     result_weight = 0.0
     for controller in controllers:
         calc_weight = controller.test(test_lora, step, all_step, custom_scope)
-        if calc_weight > result_weight:
+        if abs(calc_weight) > abs(result_weight):
             result_weight = calc_weight
     return result_weight
 

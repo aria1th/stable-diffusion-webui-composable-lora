@@ -60,7 +60,7 @@ torch.nn.Linear.forward = composable_lora.lora_Linear_forward
 torch.nn.Conv2d.forward = composable_lora.lora_Conv2d_forward
 
 def check_install_state():
-    if not hasattr(composable_lora, "should_reload"):
+    if not hasattr(composable_lora, "noop"):
         import warnings
         warnings.warn( #NOTICE: You Must Restart the WebUI after Install composable_lora!
             "module 'composable_lora' not found! Please reinstall composable_lora and restart the WebUI.")
@@ -80,7 +80,7 @@ class ComposableLoraScript(scripts.Script):
     def ui(self, is_img2img):
         with gr.Group():
             with gr.Accordion("Composable Lora", open=False):
-                if not hasattr(composable_lora, "should_reload"):
+                if not hasattr(composable_lora, "noop"):
                     gr.Markdown('<span style="color:red">Error! Composable Lora install failed! Please reinstall composable_lora and restart the WebUI.</span>')
                 enabled = gr.Checkbox(value=False, label="Enabled")
                 opt_composable_with_step = gr.Checkbox(value=False, label="Composable LoRA with step")
@@ -88,21 +88,35 @@ class ComposableLoraScript(scripts.Script):
                 opt_uc_diffusion_model = gr.Checkbox(value=False, label="Use Lora in uc diffusion model")
                 opt_plot_lora_weight = gr.Checkbox(value=False, label="Plot the LoRA weight in all steps")
                 opt_single_no_uc = gr.Checkbox(value=False, label="Don't use LoRA in uc if there're no subprompts")
+                opt_hires_step_as_global = gr.Checkbox(value=False, label="Treat hires step as global step")
+        return [enabled, opt_composable_with_step, opt_uc_text_model_encoder, opt_uc_diffusion_model, opt_plot_lora_weight, opt_single_no_uc, opt_hires_step_as_global]
 
-        return [enabled, opt_composable_with_step, opt_uc_text_model_encoder, opt_uc_diffusion_model, opt_plot_lora_weight, opt_single_no_uc]
-
-    def process(self, p: StableDiffusionProcessing, enabled: bool, opt_composable_with_step: bool, opt_uc_text_model_encoder: bool, opt_uc_diffusion_model: bool, opt_plot_lora_weight: bool, opt_single_no_uc: bool):
+    def process(self, p: StableDiffusionProcessing, 
+            enabled: bool, 
+            opt_composable_with_step: bool, 
+            opt_uc_text_model_encoder: bool, opt_uc_diffusion_model: 
+            bool, opt_plot_lora_weight: bool, opt_single_no_uc: 
+            bool, opt_hires_step_as_global: bool):
         composable_lora.enabled = enabled
         composable_lora.opt_uc_text_model_encoder = opt_uc_text_model_encoder
         composable_lora.opt_uc_diffusion_model = opt_uc_diffusion_model
         composable_lora.opt_composable_with_step = opt_composable_with_step
         composable_lora.opt_plot_lora_weight = opt_plot_lora_weight
         composable_lora.opt_single_no_uc = opt_single_no_uc
+        composable_lora.opt_hires_step_as_global = opt_hires_step_as_global
 
         composable_lora.num_batches = p.batch_size
-        composable_lora.num_steps = p.steps
+        if hasattr(p, "hr_second_pass_steps"):
+            hr_second_pass_steps = p.hr_second_pass_steps
+        else:
+            hr_second_pass_steps = 0
+        if opt_hires_step_as_global:
+            composable_lora.num_steps = p.steps + hr_second_pass_steps
+        else:
+            composable_lora.num_steps = p.steps
+        composable_lora.num_hires_steps = hr_second_pass_steps
 
-        if not hasattr(composable_lora, "should_reload"):
+        if not hasattr(composable_lora, "noop"):
             raise ModuleNotFoundError( #NOTICE: You Must Restart the WebUI after Install composable_lora!
                 "No module named 'composable_lora'! Please reinstall composable_lora and restart the WebUI.")
         composable_lora_function_handler.on_enable()
@@ -118,7 +132,7 @@ class ComposableLoraScript(scripts.Script):
         composable_lora.reset_counters()
 
     def postprocess(self, p, processed, *args):
-        if not hasattr(composable_lora, "should_reload"):
+        if not hasattr(composable_lora, "noop"):
             raise ModuleNotFoundError( #NOTICE: You Must Restart the WebUI after Install composable_lora!
                 "No module named 'composable_lora'! Please reinstall composable_lora and restart the WebUI.")
         composable_lora_function_handler.on_disable()

@@ -150,9 +150,15 @@ def add_step_counters():
     should_print = True
     step_counter += 1
 
-    if step_counter > num_steps:
+    reset_flag = False
+    if step_counter == num_steps + 1:
+        if not opt_hires_step_as_global:
+            step_counter = 0
+            reset_flag = True
+    elif step_counter > num_steps + num_hires_steps:
         step_counter = 0
-    else:
+        reset_flag = True
+    if not reset_flag:
         if opt_plot_lora_weight:
             log_lora()
 
@@ -525,6 +531,9 @@ def lora_MultiheadAttention_forward(self, input):
         res = composable_lycoris.lycoris_forward(self, input, res)
     return res
 
+def noop():
+    pass
+
 def should_reload():
     #pytorch 2.0 should reload
     match = re.search(r"\d+(\.\d+)?",str(torch.__version__)) 
@@ -533,13 +542,14 @@ def should_reload():
     ver = float(match.group(0))
     return ver >= 2.0
 
-enabled = False
-opt_composable_with_step = False
-opt_uc_text_model_encoder = False
-opt_uc_diffusion_model = False
-opt_plot_lora_weight = False
-opt_single_no_uc = False
-verbose = True
+enabled : bool = False
+opt_composable_with_step : bool = False
+opt_uc_text_model_encoder : bool = False
+opt_uc_diffusion_model : bool = False
+opt_plot_lora_weight : bool = False
+opt_single_no_uc : bool = False
+opt_hires_step_as_global : bool = False
+verbose : bool = True
 
 sd_processing = None
 full_prompt: str = ""
@@ -552,6 +562,7 @@ first_log_drawing : bool = False
 is_single_block : bool = False
 num_batches: int = 0
 num_steps: int = 20
+num_hires_steps: int = 20
 prompt_loras: List[Dict[str, float]] = []
 text_model_encoder_counter: int = -1
 diffusion_model_counter: int = 0
