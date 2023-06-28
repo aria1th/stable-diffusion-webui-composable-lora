@@ -428,6 +428,14 @@ def lora_Linear_forward(self, input):
             torch.nn.Linear_forward_before_lyco = lora.lora_Linear_forward
             #if lyco_count <= 0:
             #    return lora.lora_Linear_forward(self, input)
+            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
+                if lyco_notfound:
+                    backup_Linear_forward = torch.nn.Linear_forward_before_lora
+                    torch.nn.Linear_forward_before_lora = Linear_forward_before_clora
+                    result = lycoris.lyco_Linear_forward(self, input)
+                    torch.nn.Linear_forward_before_lora = backup_Linear_forward
+                    return result
+
             return lycoris.lyco_Linear_forward(self, input)
     clear_cache_lora(self, False)
     if (not self.weight.is_cuda) and input.is_cuda: #if variables not on the same device (between cpu and gpu)
@@ -457,6 +465,14 @@ def lora_Conv2d_forward(self, input):
             torch.nn.Conv2d_forward_before_lyco = lora.lora_Conv2d_forward
             #if lyco_count <= 0:
             #    return lora.lora_Conv2d_forward(self, input)
+            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
+                if lyco_notfound:
+                    backup_Conv2d_forward = torch.nn.Conv2d_forward_before_lora
+                    torch.nn.Conv2d_forward_before_lora = Conv2d_forward_before_clora
+                    result = lycoris.lyco_Conv2d_forward(self, input)
+                    torch.nn.Conv2d_forward_before_lora = backup_Conv2d_forward
+                    return result
+
             return lycoris.lyco_Conv2d_forward(self, input)
     clear_cache_lora(self, False)
     if (not self.weight.is_cuda) and input.is_cuda:
@@ -486,6 +502,14 @@ def lora_MultiheadAttention_forward(self, input):
             torch.nn.MultiheadAttention_forward_before_lyco = lora.lora_MultiheadAttention_forward
             #if lyco_count <= 0:
             #    return lora.lora_MultiheadAttention_forward(self, input)
+            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
+                if lyco_notfound:
+                    backup_MultiheadAttention_forward = torch.nn.MultiheadAttention_forward_before_lora
+                    torch.nn.MultiheadAttention_forward_before_lora = MultiheadAttention_forward_before_clora
+                    result = lycoris.lyco_MultiheadAttention_forward(self, input)
+                    torch.nn.MultiheadAttention_forward_before_lora = backup_MultiheadAttention_forward
+                    return result
+
             return lycoris.lyco_MultiheadAttention_forward(self, input)
     clear_cache_lora(self, False)
     if (not self.weight.is_cuda) and input.is_cuda:
