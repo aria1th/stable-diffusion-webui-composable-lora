@@ -6,6 +6,8 @@ import composable_lycoris
 import plot_helper
 from modules import extra_networks, devices
 
+lora_module_pointers = set() #store the lora module pointers
+
 def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.nn.MultiheadAttention], input, res):
     global text_model_encoder_counter
     global diffusion_model_counter
@@ -242,7 +244,16 @@ def lora_backup_weights(self: Union[torch.nn.Conv2d, torch.nn.Linear, torch.nn.M
 
         self.composable_lora_weights_backup = weights_backup
         self.lora_weights_backup = weights_backup
-
+        
+def clear_all_loras():
+    # Forcing clear cache
+    global lora_module_pointers
+    for module in lora_module_pointers:
+        clear_cache_lora(module, True)
+    lora_module_pointers.clear()
+    torch.cuda.empty_cache()
+    
+        
 def clear_cache_lora(compvis_module : Union[torch.nn.Conv2d, torch.nn.Linear, torch.nn.MultiheadAttention], force_clear : bool):
     lora_layer_name = getattr(compvis_module, 'lora_layer_name', 'unknown layer')
     if lora_layer_name in cache_layer_list:
@@ -291,7 +302,9 @@ def apply_composable_lora(lora_layer_name, m_lora, module, m_type: str, patch, a
     global text_model_encoder_counter
     global diffusion_model_counter
     global step_counter
-
+    global lora_module_pointers
+    
+    lora_module_pointers.add(module)
     custom_scope = {}
     if opt_composable_with_step:
         custom_scope = {
@@ -306,7 +319,6 @@ def apply_composable_lora(lora_layer_name, m_lora, module, m_type: str, patch, a
             "current_prompt": "",
             "sd_processing": sd_processing
         }
-
     m_lora_name = f"{m_type}:{composable_lycoris.normalize_lora_name(m_lora.name)}"
     # print(f"lora.name={m_lora.name} lora.mul={m_lora.multiplier} alpha={alpha} pat.shape={patch.shape}")
     if enabled:
@@ -495,29 +507,31 @@ def lora_Conv2d_forward(self, input):
     return res
 
 def lora_MultiheadAttention_forward(self, input):
-    if composable_lycoris.has_webui_lycoris:
-        lora_backup_weights(self)
-        if not enabled:
-            import lycoris
-            import lora
-            lyco_count = len(lycoris.loaded_lycos)
-            old_lyco_count = getattr(self, "old_lyco_count", 0)
-            if old_lyco_count > 0 and lyco_count <= 0:
-                clear_cache_lora(self, True)
-            self.old_lyco_count = lyco_count
-            torch.nn.MultiheadAttention_forward_before_lyco = lora.lora_MultiheadAttention_forward
-            #if lyco_count <= 0:
-            #    return lora.lora_MultiheadAttention_forward(self, input)
-            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
-                if lyco_notfound:
-                    backup_MultiheadAttention_forward = torch.nn.MultiheadAttention_forward_before_lora
-                    torch.nn.MultiheadAttention_forward_before_lora = MultiheadAttention_forward_before_clora
-                    result = lycoris.lyco_MultiheadAttention_forward(self, input)
-                    torch.nn.MultiheadAttention_forward_before_lora = backup_MultiheadAttention_forward
-                    return result
+    try:
+        if composable_lycoris.has_webui_lycoris:
+            lora_backup_weights(self)
+            if not enabled:
+                import lycoris
+                import lora
+                lyco_count = len(lycoris.loaded_lycos)
+                old_lyco_count = getattr(self, "old_lyco_count", 0)
+                if old_lyco_count > 0 and lyco_count <= 0:
+                    clear_cache_lora(self, True)
+                self.old_lyco_count = lyco_count
+                torch.nn.MultiheadAttention_forward_before_lyco = lora.lora_MultiheadAttention_forward
+                #if lyco_count <= 0:
+                #    return lora.lora_MultiheadAttention_forward(self, input)
+                if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
+                    if lyco_notfound:
+                        backup_MultiheadAttention_forward = torch.nn.MultiheadAttention_forward_before_lora
+                        torch.nn.MultiheadAttention_forward_before_lora = MultiheadAttention_forward_before_clora
+                        result = lycoris.lyco_MultiheadAttention_forward(self, input)
+                        torch.nn.MultiheadAttention_forward_before_lora = backup_MultiheadAttention_forward
+                        return result
 
-            return lycoris.lyco_MultiheadAttention_forward(self, input)
-    clear_cache_lora(self, False)
+                return lycoris.lyco_MultiheadAttention_forward(self, input)
+    finally:
+        clear_cache_lora(self, False)
     if (not self.weight.is_cuda) and input.is_cuda:
         self_weight_cuda = self.weight.to(device=devices.device)
         to_del = self.weight
