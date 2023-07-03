@@ -42,6 +42,7 @@ def on_enable():
             torch.nn.Conv2d.forward = composable_lora.lora_Conv2d_forward
 
 def on_disable():
+    composable_lora.clear_all_loras()
     torch.nn.Linear.forward = composable_lora.backup_lora_Linear_forward
     torch.nn.Conv2d.forward = composable_lora.backup_lora_Conv2d_forward
     torch.nn.MultiheadAttention.forward = composable_lora.backup_lora_MultiheadAttention_forward
