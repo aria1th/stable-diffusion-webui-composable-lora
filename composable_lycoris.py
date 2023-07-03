@@ -2,6 +2,7 @@ from typing import Optional, Union
 import re
 import torch
 from modules import shared, devices
+from functools import lru_cache
 
 #support for <lyco:MODEL> 
 def lycoris_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.nn.MultiheadAttention], input, res):
@@ -68,6 +69,7 @@ def composable_forward(module, patch, alpha, multiplier, res):
 
 re_lora_block_weight = re.compile(r"[_\s]*added[_\s]*by[_\s]*lora[_\s]*block[_\s]*weight[_\s]*.*$")
 
+@lru_cache(maxsize=1024)
 def normalize_lora_name(lora_name):
     result = re.sub(r"[_\s]*added[_\s]*by[_\s]*lora[_\s]*block[_\s]*weight[_\s]*.*$", "", lora_name)
     return result

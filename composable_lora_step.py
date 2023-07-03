@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Any
 import re
 import ast
 import copy
@@ -90,7 +90,7 @@ LoRA_Weight_eval_scope = {
     "abs": abs,
     "ceil": math.ceil, "floor": math.floor, "trunc": math.trunc,
     "fmod": math.fmod,
-    "gcd": math.gcd, "lcm": math.lcm,
+    "gcd": math.gcd, "lcm": lambda x, y: x * y // math.gcd(x, y), #python 3.9+
     "perm": math.perm, "comb": math.comb, "gamma": math.gamma,
     "sqrt": math.sqrt, "cbrt": lambda x: pow(x, 1.0 / 3.0),
     "exp": math.exp, "pow": math.pow,
@@ -368,7 +368,7 @@ def extra_net_split(input_str : str, pattern : str):
         return [input_str]
     return result
 
-def extra_net_re_search(pattern : Union[str, re.Pattern[str]], input_str : str):
+def extra_net_re_search(pattern : Any, input_str : str): # re.Pattern[str] is not supported in python 3.8
     result = MySearchResult()
     extra_net_list : List[str] = []
     escape_obj_list : List[str] = []
