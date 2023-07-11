@@ -1,10 +1,32 @@
 from typing import List, Dict, Optional, Union
 import re
 import torch
+import time
 import composable_lora_step
 import composable_lycoris
 import plot_helper
 from modules import extra_networks, devices
+
+try:
+    import lycoris
+except ImportError:
+    print("lycoris not found, using composable lora only.")
+
+
+class Timer:
+    # records time in seconds
+    def __init__(self) -> None:
+        self.accumulated_time = 0.0
+        self.started_time = 0.0
+    
+    def start(self) -> None:
+        self.started_time = time.time()
+    
+    def stop(self) -> None:
+        #print(f"Time elapsed: {self.accumulated_time:.2f} seconds")
+        self.accumulated_time += time.time() - self.started_time
+    
+timer = Timer()
 
 lora_module_pointers = set() #store the lora module pointers
 
@@ -15,10 +37,8 @@ def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.n
     global should_print
     global first_log_drawing
     global drawing_lora_first_index
-    import lora
 
     if composable_lycoris.has_webui_lycoris:
-        import lycoris
         if len(lycoris.loaded_lycos) > 0 and not first_log_drawing:
             print("Found LyCORIS models, Using Composable LyCORIS.")
 
@@ -29,7 +49,7 @@ def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.n
         if opt_plot_lora_weight:
             log_lora()
             drawing_lora_first_index = drawing_data[0]
-
+    import lora
     if len(lora.loaded_loras) == 0:
         return res
     
@@ -86,16 +106,18 @@ def load_prompt_loras(prompt: str):
     global full_controllers
     global first_log_drawing
     global full_prompt
+    global lyco_found_in_prompt
     prompt_loras.clear()
     prompt_blocks.clear()
     lora_controllers.clear()
     drawing_data.clear()
     full_controllers.clear()
     drawing_lora_names.clear()
-    cache_layer_list.clear()
     #load AND...AND block
     subprompts = re_AND.split(prompt)
     full_prompt = prompt
+    # check if "<lyco:???...>" is in prompt
+    lyco_found_in_prompt = re.search(r"<lyco:.*?>", prompt) is not None
     tmp_prompt_loras = []
     tmp_prompt_blocks = []
     for i, subprompt in enumerate(subprompts):
@@ -169,7 +191,6 @@ def log_lora():
     loaded_loras = lora.loaded_loras
     loaded_lycos = []
     if composable_lycoris.has_webui_lycoris:
-        import lycoris
         loaded_lycos = lycoris.loaded_lycos
 
     tmp_data : List[float] = []
@@ -230,73 +251,31 @@ def plot_lora():
     return plot_helper.plot_lora_weight(drawing_data, drawing_lora_names)
 
 def lora_backup_weights(self: Union[torch.nn.Conv2d, torch.nn.Linear, torch.nn.MultiheadAttention]):
+    """
+    Assign the current weights to the backup weights. as .composable_lora_weights_backup and .lora_weights_backup
+    """
     lora_layer_name = getattr(self, 'lora_layer_name', None)
     if lora_layer_name is None:
         return
-    import lora
-
     weights_backup = getattr(self, "composable_lora_weights_backup", None)
     if weights_backup is None:
         if isinstance(self, torch.nn.MultiheadAttention):
             weights_backup = (self.in_proj_weight.to(devices.cpu, copy=True), self.out_proj.weight.to(devices.cpu, copy=True))
         else:
             weights_backup = self.weight.to(devices.cpu, copy=True)
-
         self.composable_lora_weights_backup = weights_backup
         self.lora_weights_backup = weights_backup
         
 def clear_all_loras():
     # Forcing clear cache
-    global lora_module_pointers
-    for module in lora_module_pointers:
-        clear_cache_lora(module, True)
+    global lora_module_pointers, lora_controllers, full_controllers, sd_processing
     lora_module_pointers.clear()
     torch.cuda.empty_cache()
-    
-        
-def clear_cache_lora(compvis_module : Union[torch.nn.Conv2d, torch.nn.Linear, torch.nn.MultiheadAttention], force_clear : bool):
-    lora_layer_name = getattr(compvis_module, 'lora_layer_name', 'unknown layer')
-    if lora_layer_name in cache_layer_list:
-        return
-    cache_layer_list.append(lora_layer_name)
-    lyco_weights_backup = getattr(compvis_module, "lyco_weights_backup", None)
-    lora_weights_backup = getattr(compvis_module, "lora_weights_backup", None)
-    composable_lora_weights_backup = getattr(compvis_module, "composable_lora_weights_backup", None)
-    if enabled or force_clear:
-        if composable_lora_weights_backup is not None:
-            if isinstance(compvis_module, torch.nn.MultiheadAttention):
-                compvis_module.in_proj_weight.copy_(composable_lora_weights_backup[0])
-                compvis_module.out_proj.weight.copy_(composable_lora_weights_backup[1])
-            else:
-                compvis_module.weight.copy_(composable_lora_weights_backup)
-        else:
-            if lyco_weights_backup is not None:
-                if isinstance(compvis_module, torch.nn.MultiheadAttention):
-                    compvis_module.in_proj_weight.copy_(lyco_weights_backup[0])
-                    compvis_module.out_proj.weight.copy_(lyco_weights_backup[1])
-                    lora_weights_backup = (
-                        lyco_weights_backup[0].to(devices.cpu, copy=True), 
-                        lyco_weights_backup[1].to(devices.cpu, copy=True)
-                    )
-                else:
-                    compvis_module.weight.copy_(lyco_weights_backup)
-                    lora_weights_backup = lyco_weights_backup.to(devices.cpu, copy=True)
-                setattr(compvis_module, "lora_weights_backup", lora_weights_backup)
-            elif lora_weights_backup is not None:
-                if isinstance(compvis_module, torch.nn.MultiheadAttention):
-                    compvis_module.in_proj_weight.copy_(lora_weights_backup[0])
-                    compvis_module.out_proj.weight.copy_(lora_weights_backup[1])
-                else:
-                    compvis_module.weight.copy_(lora_weights_backup)
-            setattr(compvis_module, "lora_current_names", ())
-            setattr(compvis_module, "lyco_current_names", ())
-    else:
-        if (composable_lora_weights_backup is not None) and composable_lycoris.has_webui_lycoris:
-            if isinstance(compvis_module, torch.nn.MultiheadAttention):
-                compvis_module.in_proj_weight.copy_(composable_lora_weights_backup[0])
-                compvis_module.out_proj.weight.copy_(composable_lora_weights_backup[1])
-            else:
-                compvis_module.weight.copy_(composable_lora_weights_backup)
+    if sd_processing is not None:
+        sd_processing.close()
+    sd_processing = None
+    lora_controllers.clear()
+    full_controllers.clear()
 
 def apply_composable_lora(lora_layer_name, m_lora, module, m_type: str, patch, alpha, res, num_loras, num_prompts):
     global text_model_encoder_counter
@@ -434,20 +413,14 @@ def apply_composable_lora(lora_layer_name, m_lora, module, m_type: str, patch, a
 
 def lora_Linear_forward(self, input):
     if composable_lycoris.has_webui_lycoris:
-        lora_backup_weights(self)
+        #lora_backup_weights(self)
         if not enabled:
-            import lycoris
             import lora
-            lyco_count = len(lycoris.loaded_lycos)
-            old_lyco_count = getattr(self, "old_lyco_count", 0)
-            if old_lyco_count > 0 and lyco_count <= 0:
-                clear_cache_lora(self, True)
-            self.old_lyco_count = lyco_count
             torch.nn.Linear_forward_before_lyco = lora.lora_Linear_forward
             #if lyco_count <= 0:
             #    return lora.lora_Linear_forward(self, input)
-            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
-                if lyco_notfound:
+            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals() or not lyco_found_in_prompt:
+                if not lyco_found_in_prompt or lyco_notfound:
                     backup_Linear_forward = torch.nn.Linear_forward_before_lora
                     torch.nn.Linear_forward_before_lora = Linear_forward_before_clora
                     result = lycoris.lyco_Linear_forward(self, input)
@@ -455,7 +428,6 @@ def lora_Linear_forward(self, input):
                     return result
 
             return lycoris.lyco_Linear_forward(self, input)
-    clear_cache_lora(self, False)
     if (not self.weight.is_cuda) and input.is_cuda: #if variables not on the same device (between cpu and gpu)
         self_weight_cuda = self.weight.to(device=devices.device) #pass to GPU
         to_del = self.weight
@@ -465,26 +437,21 @@ def lora_Linear_forward(self, input):
         self.weight = self_weight_cuda        #load GPU data to self.weight
     res = torch.nn.Linear_forward_before_lora(self, input)
     res = lora_forward(self, input, res)
-    if composable_lycoris.has_webui_lycoris:
+    if composable_lycoris.has_webui_lycoris and lyco_found_in_prompt:
         res = composable_lycoris.lycoris_forward(self, input, res)
     return res
 
 def lora_Conv2d_forward(self, input):
+    # if lycoris model is loaded, use lycoris model
     if composable_lycoris.has_webui_lycoris:
-        lora_backup_weights(self)
+        #lora_backup_weights(self)
         if not enabled:
-            import lycoris
             import lora
-            lyco_count = len(lycoris.loaded_lycos)
-            old_lyco_count = getattr(self, "old_lyco_count", 0)
-            if old_lyco_count > 0 and lyco_count <= 0:
-                clear_cache_lora(self, True)
-            self.old_lyco_count = lyco_count
             torch.nn.Conv2d_forward_before_lyco = lora.lora_Conv2d_forward
             #if lyco_count <= 0:
             #    return lora.lora_Conv2d_forward(self, input)
-            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
-                if lyco_notfound:
+            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals() or not lyco_found_in_prompt:
+                if not lyco_found_in_prompt or lyco_notfound:
                     backup_Conv2d_forward = torch.nn.Conv2d_forward_before_lora
                     torch.nn.Conv2d_forward_before_lora = Conv2d_forward_before_clora
                     result = lycoris.lyco_Conv2d_forward(self, input)
@@ -492,7 +459,6 @@ def lora_Conv2d_forward(self, input):
                     return result
 
             return lycoris.lyco_Conv2d_forward(self, input)
-    clear_cache_lora(self, False)
     if (not self.weight.is_cuda) and input.is_cuda:
         self_weight_cuda = self.weight.to(device=devices.device)
         to_del = self.weight
@@ -502,46 +468,7 @@ def lora_Conv2d_forward(self, input):
         self.weight = self_weight_cuda
     res = torch.nn.Conv2d_forward_before_lora(self, input)
     res = lora_forward(self, input, res)
-    if composable_lycoris.has_webui_lycoris:
-        res = composable_lycoris.lycoris_forward(self, input, res)
-    return res
-
-def lora_MultiheadAttention_forward(self, input):
-    try:
-        if composable_lycoris.has_webui_lycoris:
-            lora_backup_weights(self)
-            if not enabled:
-                import lycoris
-                import lora
-                lyco_count = len(lycoris.loaded_lycos)
-                old_lyco_count = getattr(self, "old_lyco_count", 0)
-                if old_lyco_count > 0 and lyco_count <= 0:
-                    clear_cache_lora(self, True)
-                self.old_lyco_count = lyco_count
-                torch.nn.MultiheadAttention_forward_before_lyco = lora.lora_MultiheadAttention_forward
-                #if lyco_count <= 0:
-                #    return lora.lora_MultiheadAttention_forward(self, input)
-                if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
-                    if lyco_notfound:
-                        backup_MultiheadAttention_forward = torch.nn.MultiheadAttention_forward_before_lora
-                        torch.nn.MultiheadAttention_forward_before_lora = MultiheadAttention_forward_before_clora
-                        result = lycoris.lyco_MultiheadAttention_forward(self, input)
-                        torch.nn.MultiheadAttention_forward_before_lora = backup_MultiheadAttention_forward
-                        return result
-
-                return lycoris.lyco_MultiheadAttention_forward(self, input)
-    finally:
-        clear_cache_lora(self, False)
-    if (not self.weight.is_cuda) and input.is_cuda:
-        self_weight_cuda = self.weight.to(device=devices.device)
-        to_del = self.weight
-        self.weight = None
-        del to_del
-        del self.weight #avoid "cannot assign XXX as parameter YYY (torch.nn.Parameter or None expected)"
-        self.weight = self_weight_cuda
-    res = torch.nn.MultiheadAttention_forward_before_lora(self, input)
-    res = lora_forward(self, input, res)
-    if composable_lycoris.has_webui_lycoris:
+    if composable_lycoris.has_webui_lycoris and lyco_found_in_prompt:
         res = composable_lycoris.lycoris_forward(self, input, res)
     return res
 
@@ -567,6 +494,7 @@ verbose : bool = True
 
 sd_processing = None
 full_prompt: str = ""
+lyco_found_in_prompt : bool = False
 negative_prompt: str = ""
 drawing_lora_names : List[str] = []
 drawing_data : List[List[float]] = []
@@ -581,8 +509,6 @@ prompt_loras: List[Dict[str, float]] = []
 text_model_encoder_counter: int = -1
 diffusion_model_counter: int = 0
 step_counter: int = 0
-cache_layer_list : List[str] = []
-
 should_print : bool = True
 prompt_blocks: List[str] = []
 lora_controllers: List[List[composable_lora_step.LoRA_Controller_Base]] = []
