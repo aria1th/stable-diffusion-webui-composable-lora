@@ -30,6 +30,17 @@ timer = Timer()
 
 lora_module_pointers = set() #store the lora module pointers
 
+previous_message = ""
+debug_print_enabled = True
+def debug_print(*args):
+    if debug_print_enabled:
+        if len(args) > 0:
+            global previous_message
+            message = str(args[0])
+            if message != previous_message:
+                print(message)
+                previous_message = message
+
 def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.nn.MultiheadAttention], input, res):
     global text_model_encoder_counter
     global diffusion_model_counter
@@ -50,6 +61,7 @@ def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.n
             log_lora()
             drawing_lora_first_index = drawing_data[0]
     import lora
+    debug_print(f"lora_count: {len(lora.loaded_loras)}")
     if len(lora.loaded_loras) == 0:
         return res
     
@@ -412,7 +424,7 @@ def apply_composable_lora(lora_layer_name, m_lora, module, m_type: str, patch, a
     return res
 
 def lora_Linear_forward(self, input):
-    if composable_lycoris.has_webui_lycoris:
+    if lyco_found_in_prompt and composable_lycoris.has_webui_lycoris:
         #lora_backup_weights(self)
         if not enabled:
             import lora
@@ -443,7 +455,7 @@ def lora_Linear_forward(self, input):
 
 def lora_Conv2d_forward(self, input):
     # if lycoris model is loaded, use lycoris model
-    if composable_lycoris.has_webui_lycoris:
+    if lyco_found_in_prompt and composable_lycoris.has_webui_lycoris:
         #lora_backup_weights(self)
         if not enabled:
             import lora
