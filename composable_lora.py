@@ -5,6 +5,7 @@ import time
 import composable_lora_step
 import composable_lycoris
 import plot_helper
+import lora_ext
 from modules import extra_networks, devices
 
 try:
@@ -48,6 +49,8 @@ def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.n
     global should_print
     global first_log_drawing
     global drawing_lora_first_index
+    import lora
+    debug_print(f"lora_count: {len(lora.loaded_loras)}")
 
     if composable_lycoris.has_webui_lycoris:
         if len(lycoris.loaded_lycos) > 0 and not first_log_drawing:
@@ -60,9 +63,7 @@ def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.n
         if opt_plot_lora_weight:
             log_lora()
             drawing_lora_first_index = drawing_data[0]
-    import lora
-    debug_print(f"lora_count: {len(lora.loaded_loras)}")
-    if len(lora.loaded_loras) == 0:
+    if len(lora_ext.get_loaded_lora()) == 0:
         return res
     
     if hasattr(devices, "cond_cast_unet"):
@@ -70,12 +71,15 @@ def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.n
 
     lora_layer_name_loading : Optional[str] = getattr(compvis_module, 'lora_layer_name', None)
     if lora_layer_name_loading is None:
+        lora_layer_name_loading = getattr(compvis_module, 'network_layer_name', None)
+    if lora_layer_name_loading is None:
         return res
     #let it type is actually a string
     lora_layer_name : str = str(lora_layer_name_loading)
     del lora_layer_name_loading
 
-    num_loras = len(lora.loaded_loras)
+    lora_loaded_loras = lora_ext.get_loaded_lora()
+    num_loras = len(lora_loaded_loras)
     if composable_lycoris.has_webui_lycoris:
         num_loras += len(lycoris.loaded_lycos)
 
@@ -85,7 +89,7 @@ def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.n
     tmp_check_loras = [] #store which lora are already apply
     tmp_check_loras.clear()
 
-    for m_lora in lora.loaded_loras:
+    for m_lora in lora_loaded_loras:
         module = m_lora.modules.get(lora_layer_name, None)
         if module is None:
             #fix the lyCORIS issue
@@ -200,7 +204,7 @@ def add_step_counters():
 
 def log_lora():
     import lora
-    loaded_loras = lora.loaded_loras
+    loaded_loras = lora_ext.get_loaded_lora()
     loaded_lycos = []
     if composable_lycoris.has_webui_lycoris:
         loaded_lycos = lycoris.loaded_lycos
@@ -428,18 +432,30 @@ def lora_Linear_forward(self, input):
         #lora_backup_weights(self)
         if not enabled:
             import lora
-            torch.nn.Linear_forward_before_lyco = lora.lora_Linear_forward
+            lyco_count = len(lycoris.loaded_lycos)
+            old_lyco_count = getattr(self, "old_lyco_count", 0)
+            if old_lyco_count > 0 and lyco_count <= 0:
+                clear_cache_lora(self, True)
+            self.old_lyco_count = lyco_count
+            lora_ext.load_lora_ext()
+            torch.nn.Linear_forward_before_lyco = lora_ext.lora_Linear_forward
+            torch.nn.Linear_forward_before_network = Linear_forward_before_clora
             #if lyco_count <= 0:
-            #    return lora.lora_Linear_forward(self, input)
-            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals() or not lyco_found_in_prompt:
-                if not lyco_found_in_prompt or lyco_notfound:
+            #    return lora_ext.lora_Linear_forward(self, input)
+            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
+                if lyco_notfound:
                     backup_Linear_forward = torch.nn.Linear_forward_before_lora
                     torch.nn.Linear_forward_before_lora = Linear_forward_before_clora
                     result = lycoris.lyco_Linear_forward(self, input)
                     torch.nn.Linear_forward_before_lora = backup_Linear_forward
                     return result
-
             return lycoris.lyco_Linear_forward(self, input)
+    if lora_ext.is_sd_1_5:
+        import networks
+        networks.network_restore_weights_from_backup(self)
+        networks.network_reset_cached_weight(self)
+    else:
+        clear_cache_lora(self, False)
     if (not self.weight.is_cuda) and input.is_cuda: #if variables not on the same device (between cpu and gpu)
         self_weight_cuda = self.weight.to(device=devices.device) #pass to GPU
         to_del = self.weight
@@ -459,11 +475,18 @@ def lora_Conv2d_forward(self, input):
         #lora_backup_weights(self)
         if not enabled:
             import lora
-            torch.nn.Conv2d_forward_before_lyco = lora.lora_Conv2d_forward
+            lyco_count = len(lycoris.loaded_lycos)
+            old_lyco_count = getattr(self, "old_lyco_count", 0)
+            if old_lyco_count > 0 and lyco_count <= 0:
+                clear_cache_lora(self, True)
+            self.old_lyco_count = lyco_count
+            lora_ext.load_lora_ext()
+            torch.nn.Conv2d_forward_before_lyco = lora_ext.lora_Conv2d_forward
+            torch.nn.Conv2d_forward_before_network = Conv2d_forward_before_clora
             #if lyco_count <= 0:
-            #    return lora.lora_Conv2d_forward(self, input)
-            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals() or not lyco_found_in_prompt:
-                if not lyco_found_in_prompt or lyco_notfound:
+            #    return lora_ext.lora_Conv2d_forward(self, input)
+            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
+                if lyco_notfound:
                     backup_Conv2d_forward = torch.nn.Conv2d_forward_before_lora
                     torch.nn.Conv2d_forward_before_lora = Conv2d_forward_before_clora
                     result = lycoris.lyco_Conv2d_forward(self, input)
@@ -471,6 +494,12 @@ def lora_Conv2d_forward(self, input):
                     return result
 
             return lycoris.lyco_Conv2d_forward(self, input)
+    if lora_ext.is_sd_1_5:
+        import networks
+        networks.network_restore_weights_from_backup(self)
+        networks.network_reset_cached_weight(self)
+    else:
+        clear_cache_lora(self, False)
     if (not self.weight.is_cuda) and input.is_cuda:
         self_weight_cuda = self.weight.to(device=devices.device)
         to_del = self.weight
@@ -480,7 +509,52 @@ def lora_Conv2d_forward(self, input):
         self.weight = self_weight_cuda
     res = torch.nn.Conv2d_forward_before_lora(self, input)
     res = lora_forward(self, input, res)
-    if composable_lycoris.has_webui_lycoris and lyco_found_in_prompt:
+    if composable_lycoris.has_webui_lycoris:
+        res = composable_lycoris.lycoris_forward(self, input, res)
+    return res
+
+def lora_MultiheadAttention_forward(self, input):
+    if composable_lycoris.has_webui_lycoris:
+        lora_backup_weights(self)
+        if not enabled:
+            import lycoris
+            import lora
+            lyco_count = len(lycoris.loaded_lycos)
+            old_lyco_count = getattr(self, "old_lyco_count", 0)
+            if old_lyco_count > 0 and lyco_count <= 0:
+                clear_cache_lora(self, True)
+            self.old_lyco_count = lyco_count
+            lora_ext.load_lora_ext()
+            torch.nn.MultiheadAttention_forward_before_lyco = lora_ext.lora_MultiheadAttention_forward
+            torch.nn.MultiheadAttention_forward_before_network = MultiheadAttention_forward_before_clora
+
+            #if lyco_count <= 0:
+            #    return lora_ext.lora_MultiheadAttention_forward(self, input)
+            if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
+                if lyco_notfound:
+                    backup_MultiheadAttention_forward = torch.nn.MultiheadAttention_forward_before_lora
+                    torch.nn.MultiheadAttention_forward_before_lora = MultiheadAttention_forward_before_clora
+                    result = lycoris.lyco_MultiheadAttention_forward(self, input)
+                    torch.nn.MultiheadAttention_forward_before_lora = backup_MultiheadAttention_forward
+                    return result
+
+            return lycoris.lyco_MultiheadAttention_forward(self, input)
+    if lora_ext.is_sd_1_5:
+        import networks
+        networks.network_restore_weights_from_backup(self)
+        networks.network_reset_cached_weight(self)
+    else:
+        clear_cache_lora(self, False)
+    if (not self.weight.is_cuda) and input.is_cuda:
+        self_weight_cuda = self.weight.to(device=devices.device)
+        to_del = self.weight
+        self.weight = None
+        del to_del
+        del self.weight #avoid "cannot assign XXX as parameter YYY (torch.nn.Parameter or None expected)"
+        self.weight = self_weight_cuda
+    res = torch.nn.MultiheadAttention_forward_before_lora(self, input)
+    res = lora_forward(self, input, res)
+    if composable_lycoris.has_webui_lycoris:
         res = composable_lycoris.lycoris_forward(self, input, res)
     return res
 
