@@ -4,6 +4,7 @@ import torch
 import composable_lora_step
 import composable_lycoris
 import plot_helper
+import lora_ext
 from modules import extra_networks, devices
 
 def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.nn.MultiheadAttention], input, res):
@@ -13,6 +14,7 @@ def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.n
     global should_print
     global first_log_drawing
     global drawing_lora_first_index
+
     import lora
 
     if composable_lycoris.has_webui_lycoris:
@@ -28,7 +30,7 @@ def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.n
             log_lora()
             drawing_lora_first_index = drawing_data[0]
 
-    if len(lora.loaded_loras) == 0:
+    if len(lora_ext.get_loaded_lora()) == 0:
         return res
     
     if hasattr(devices, "cond_cast_unet"):
@@ -36,12 +38,15 @@ def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.n
 
     lora_layer_name_loading : Optional[str] = getattr(compvis_module, 'lora_layer_name', None)
     if lora_layer_name_loading is None:
+        lora_layer_name_loading = getattr(compvis_module, 'network_layer_name', None)
+    if lora_layer_name_loading is None:
         return res
     #let it type is actually a string
     lora_layer_name : str = str(lora_layer_name_loading)
     del lora_layer_name_loading
 
-    num_loras = len(lora.loaded_loras)
+    lora_loaded_loras = lora_ext.get_loaded_lora()
+    num_loras = len(lora_loaded_loras)
     if composable_lycoris.has_webui_lycoris:
         num_loras += len(lycoris.loaded_lycos)
 
@@ -51,7 +56,7 @@ def lora_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torch.n
     tmp_check_loras = [] #store which lora are already apply
     tmp_check_loras.clear()
 
-    for m_lora in lora.loaded_loras:
+    for m_lora in lora_loaded_loras:
         module = m_lora.modules.get(lora_layer_name, None)
         if module is None:
             #fix the lyCORIS issue
@@ -164,7 +169,7 @@ def add_step_counters():
 
 def log_lora():
     import lora
-    loaded_loras = lora.loaded_loras
+    loaded_loras = lora_ext.get_loaded_lora()
     loaded_lycos = []
     if composable_lycoris.has_webui_lycoris:
         import lycoris
@@ -431,9 +436,11 @@ def lora_Linear_forward(self, input):
             if old_lyco_count > 0 and lyco_count <= 0:
                 clear_cache_lora(self, True)
             self.old_lyco_count = lyco_count
-            torch.nn.Linear_forward_before_lyco = lora.lora_Linear_forward
+            lora_ext.load_lora_ext()
+            torch.nn.Linear_forward_before_lyco = lora_ext.lora_Linear_forward
+            torch.nn.Linear_forward_before_network = Linear_forward_before_clora
             #if lyco_count <= 0:
-            #    return lora.lora_Linear_forward(self, input)
+            #    return lora_ext.lora_Linear_forward(self, input)
             if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
                 if lyco_notfound:
                     backup_Linear_forward = torch.nn.Linear_forward_before_lora
@@ -441,7 +448,6 @@ def lora_Linear_forward(self, input):
                     result = lycoris.lyco_Linear_forward(self, input)
                     torch.nn.Linear_forward_before_lora = backup_Linear_forward
                     return result
-
             return lycoris.lyco_Linear_forward(self, input)
     clear_cache_lora(self, False)
     if (not self.weight.is_cuda) and input.is_cuda: #if variables not on the same device (between cpu and gpu)
@@ -468,9 +474,11 @@ def lora_Conv2d_forward(self, input):
             if old_lyco_count > 0 and lyco_count <= 0:
                 clear_cache_lora(self, True)
             self.old_lyco_count = lyco_count
-            torch.nn.Conv2d_forward_before_lyco = lora.lora_Conv2d_forward
+            lora_ext.load_lora_ext()
+            torch.nn.Conv2d_forward_before_lyco = lora_ext.lora_Conv2d_forward
+            torch.nn.Conv2d_forward_before_network = Conv2d_forward_before_clora
             #if lyco_count <= 0:
-            #    return lora.lora_Conv2d_forward(self, input)
+            #    return lora_ext.lora_Conv2d_forward(self, input)
             if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
                 if lyco_notfound:
                     backup_Conv2d_forward = torch.nn.Conv2d_forward_before_lora
@@ -505,9 +513,12 @@ def lora_MultiheadAttention_forward(self, input):
             if old_lyco_count > 0 and lyco_count <= 0:
                 clear_cache_lora(self, True)
             self.old_lyco_count = lyco_count
-            torch.nn.MultiheadAttention_forward_before_lyco = lora.lora_MultiheadAttention_forward
+            lora_ext.load_lora_ext()
+            torch.nn.MultiheadAttention_forward_before_lyco = lora_ext.lora_MultiheadAttention_forward
+            torch.nn.MultiheadAttention_forward_before_network = MultiheadAttention_forward_before_clora
+
             #if lyco_count <= 0:
-            #    return lora.lora_MultiheadAttention_forward(self, input)
+            #    return lora_ext.lora_MultiheadAttention_forward(self, input)
             if 'lyco_notfound' in locals() or 'lyco_notfound' in globals():
                 if lyco_notfound:
                     backup_MultiheadAttention_forward = torch.nn.MultiheadAttention_forward_before_lora

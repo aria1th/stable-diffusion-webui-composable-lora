@@ -6,6 +6,7 @@ import gradio as gr
 
 import composable_lora
 import composable_lora_function_handler
+import lora_ext
 import modules.scripts as scripts
 from modules import script_callbacks
 from modules.processing import StableDiffusionProcessing
@@ -56,8 +57,8 @@ if hasattr(torch.nn, 'Linear_forward_before_lyco'):
 else:
     composable_lora.lyco_notfound = True
 
-torch.nn.Linear.forward = composable_lora.lora_Linear_forward
-torch.nn.Conv2d.forward = composable_lora.lora_Conv2d_forward
+#torch.nn.Linear.forward = composable_lora.lora_Linear_forward
+#torch.nn.Conv2d.forward = composable_lora.lora_Conv2d_forward
 
 def check_install_state():
     if not hasattr(composable_lora, "noop"):
@@ -97,6 +98,11 @@ class ComposableLoraScript(scripts.Script):
             opt_uc_text_model_encoder: bool, opt_uc_diffusion_model: 
             bool, opt_plot_lora_weight: bool, opt_single_no_uc: 
             bool, opt_hires_step_as_global: bool):
+        lora_ext.load_lora_ext()
+        if lora_ext.is_sd_1_5:
+            import composable_lycoris
+            if composable_lycoris.has_webui_lycoris:
+                print("Error! in sd webui 1.5, composable-lora not support with sd-webui-lycoris extension.")
         composable_lora.enabled = enabled
         composable_lora.opt_uc_text_model_encoder = opt_uc_text_model_encoder
         composable_lora.opt_uc_diffusion_model = opt_uc_diffusion_model
