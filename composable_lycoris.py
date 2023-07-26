@@ -372,7 +372,7 @@ def convert_lycoris(lycoris_module, sd_module):
         )
     elif lycoris_module.__class__.__name__ == "FullModule" or lycoris_module.__class__.__name__ == "NetworkModuleFull":
         result_module = FullModule()
-        result_module.weight = lycoris_module.weight#.to(device=devices.device, dtype=devices.dtype)
+        result_module.weight = lycoris_module.weight.to(device=devices.device, dtype=devices.dtype)
         result_module.alpha = lycoris_module.alpha
         result_module.shape = lycoris_module.shape
         result_module.up = FakeModule(
