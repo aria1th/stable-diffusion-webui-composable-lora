@@ -50,15 +50,15 @@ def load_lora_ext():
         if hasattr(networks, "network_MultiheadAttention_load_state_dict"):
             lora_MultiheadAttention_load_state_dict = networks.network_MultiheadAttention_load_state_dict
     else:
-        if hasattr(networks, "network_Linear_forward"):
+        if hasattr(lora, "network_Linear_forward"):
             lora_Linear_forward = lora.lora_Linear_forward
-        if hasattr(networks, "network_Linear_load_state_dict"):
+        if hasattr(lora, "network_Linear_load_state_dict"):
             lora_Linear_load_state_dict = lora.lora_Linear_load_state_dict
-        if hasattr(networks, "network_Conv2d_forward"):
+        if hasattr(lora, "network_Conv2d_forward"):
             lora_Conv2d_forward = lora.lora_Conv2d_forward
-        if hasattr(networks, "network_Conv2d_load_state_dict"):
+        if hasattr(lora, "network_Conv2d_load_state_dict"):
             lora_Conv2d_load_state_dict = lora.lora_Conv2d_load_state_dict
-        if hasattr(networks, "network_MultiheadAttention_forward"):
+        if hasattr(lora, "network_MultiheadAttention_forward"):
             lora_MultiheadAttention_forward = lora.lora_MultiheadAttention_forward
-        if hasattr(networks, "network_MultiheadAttention_load_state_dict"):
+        if hasattr(lora, "network_MultiheadAttention_load_state_dict"):
             lora_MultiheadAttention_load_state_dict = lora.lora_MultiheadAttention_load_state_dict
