@@ -43,10 +43,8 @@ The highlighting of the prompt words on the image is done using the [sd-webui-pr
 
 This test was conducted on May 14, 2023, using Stable Diffusion WebUI version [v1.2 (89f9faa)](https://github.com/AUTOMATIC1111/stable-diffusion-webui/commit/89f9faa63388756314e8a1d96cf86bf5e0663045).
 
-(Note: You should enable \[`Lora: use old method that takes longer when you have multiple Loras active and produces same results as kohya-ss/sd-webui-additional-networks extension`\] in setting page.)
-
-Another test was conducted on June 24, 2023, using Stable Diffusion WebUI version [v1.4.0-RC (baf6946)](https://github.com/AUTOMATIC1111/stable-diffusion-webui/commit/baf6946e06249c5af9851c60171692c44ef633e0). Using one sanjouno haruhime locon model that I trained myself and one [onimaiCharactersLora](https://civitai.com/models/10767/onimai-characters-lora) model downloaded from civitai. 
-![](readme/fig12.png)
+Another test was conducted on July 25, 2023, using Stable Diffusion WebUI version [v1.5.0 (a3ddf46)](https://github.com/AUTOMATIC1111/stable-diffusion-webui/commit/a3ddf464a2ed24c999f67ddfef7969f8291567be). Using hiyori \(princess_connect!\) and dia viekone locon model that I trained myself. 
+![](readme/fig13.png)
 
 ## Features
 ### Compatible with Composable-Diffusion

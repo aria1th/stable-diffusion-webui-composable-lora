@@ -1,6 +1,7 @@
 from typing import Optional, Union
 import re
 import torch
+import lora_ext
 from modules import shared, devices
 from functools import lru_cache
 
@@ -23,7 +24,7 @@ def lycoris_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torc
     del lycoris_layer_name_loading
 
     sd_module = shared.sd_model.lora_layer_mapping.get(lycoris_layer_name, None)
-    num_loras = len(lora.loaded_loras) + len(lycoris.loaded_lycos)
+    num_loras = len(lora_ext.get_loaded_lora()) + len(lycoris.loaded_lycos)
 
     if lora_controller.text_model_encoder_counter == -1:
         lora_controller.text_model_encoder_counter = len(lora_controller.prompt_loras) * num_loras
@@ -63,6 +64,9 @@ def lycoris_forward(compvis_module: Union[torch.nn.Conv2d, torch.nn.Linear, torc
     return res
 
 def composable_forward(module, patch, alpha, multiplier, res):
+    """
+    apply composable lora forward or merge results from lora and unet
+    """
     if hasattr(module, 'composable_forward'):
         return module.composable_forward(patch, alpha, multiplier, res)
     return res + multiplier * alpha * patch
@@ -75,6 +79,9 @@ def normalize_lora_name(lora_name):
     return result
 
 def get_lora_inference(module, input):
+    """
+    Actual inference of lora, which is equivalent to module(input)
+    """
     if hasattr(module, 'inference'): #support for lyCORIS
         return module.inference(input)
     elif hasattr(module, 'up'):     #LoRA
@@ -87,6 +94,11 @@ def get_lora_inference(module, input):
         return None
 
 def get_lora_patch(module, input, res, lora_layer_name):
+    """
+    depends on shared.opts.lora_apply_to_outputs, get the patch for lora
+    if shared.opts.lora_apply_to_outputs is True, then recalculate the result with previous output
+    else, recalculate the result with input
+    """
     if is_loha(module):
         if input.is_cuda: #if is cuda, pass to cuda; otherwise do nothing
             pass_loha_to_gpu(module)
@@ -97,6 +109,7 @@ def get_lora_patch(module, input, res, lora_layer_name):
         else:
             converted_module = convert_lycoris(module, shared.sd_model.lora_layer_mapping.get(lora_layer_name, None))
             if converted_module is not None:
+                # inference
                 return get_lora_inference(converted_module, res)
             else:
                 raise NotImplementedError(
@@ -107,7 +120,10 @@ def get_lora_patch(module, input, res, lora_layer_name):
         if inference is not None: 
             return inference
         else:
-            converted_module = convert_lycoris(module, shared.sd_model.lora_layer_mapping.get(lora_layer_name, None))
+            if hasattr(shared.sd_model, "network_layer_mapping"):
+                converted_module = convert_lycoris(module, shared.sd_model.network_layer_mapping.get(lora_layer_name, None))
+            else:
+                converted_module = convert_lycoris(module, shared.sd_model.lora_layer_mapping.get(lora_layer_name, None))
             if converted_module is not None:
                 return get_lora_inference(converted_module, input)
             else:
@@ -116,6 +132,7 @@ def get_lora_patch(module, input, res, lora_layer_name):
                 )
         
 def get_lora_alpha(module, default_val):
+    # calculate alpha - which is module.alpha / module.up.weight.shape[1] or module.alpha / module.dim or just default_val
     if hasattr(module, 'up'):
         return (module.alpha / module.up.weight.shape[1] if module.alpha else default_val)
     elif hasattr(module, 'dim'): #support for lyCORIS
@@ -342,7 +359,8 @@ def convert_lycoris(lycoris_module, sd_module):
     result_module = getattr(lycoris_module, 'lyco_converted_lora_module', None)
     if result_module is not None:
         return result_module
-    if lycoris_module.__class__.__name__ == "LycoUpDownModule" or lycoris_module.__class__.__name__ == "LoraUpDownModule":
+    if lycoris_module.__class__.__name__ == "LycoUpDownModule" or lycoris_module.__class__.__name__ == "LoraUpDownModule"\
+    or lycoris_module.__class__.__name__ == "NetworkModuleLora":
         result_module = LoraUpDownModule()
         if (type(sd_module) == torch.nn.Linear
             or type(sd_module) == torch.nn.modules.linear.NonDynamicallyQuantizableLinear
@@ -367,9 +385,9 @@ def convert_lycoris(lycoris_module, sd_module):
             result_module.up_model.weight,
             result_module.inference
         )
-    elif lycoris_module.__class__.__name__ == "FullModule":
+    elif lycoris_module.__class__.__name__ == "FullModule" or lycoris_module.__class__.__name__ == "NetworkModuleFull":
         result_module = FullModule()
-        result_module.weight = lycoris_module.weight#.to(device=devices.device, dtype=devices.dtype)
+        result_module.weight = lycoris_module.weight.to(device=devices.device, dtype=devices.dtype)
         result_module.alpha = lycoris_module.alpha
         result_module.shape = lycoris_module.shape
         result_module.up = FakeModule(
@@ -390,7 +408,7 @@ def convert_lycoris(lycoris_module, sd_module):
             }
         setattr(lycoris_module, "lyco_converted_lora_module", result_module)
         return result_module
-    elif lycoris_module.__class__.__name__ == "IA3Module":
+    elif lycoris_module.__class__.__name__ == "IA3Module" or lycoris_module.__class__.__name__ == "NetworkModuleIa3":
         result_module = IA3Module()
         result_module.w = lycoris_module.w
         result_module.alpha = lycoris_module.alpha
@@ -403,7 +421,8 @@ def convert_lycoris(lycoris_module, sd_module):
             result_module.op = torch.nn.functional.linear
         elif type(sd_module) == torch.nn.Conv2d:
             result_module.op = torch.nn.functional.conv2d
-    elif lycoris_module.__class__.__name__ == "LycoHadaModule" or lycoris_module.__class__.__name__ == "LoraHadaModule":
+    elif lycoris_module.__class__.__name__ == "LycoHadaModule" or lycoris_module.__class__.__name__ == "LoraHadaModule"\
+          or lycoris_module.__class__.__name__ == "NetworkModuleHada":
         result_module = LoraHadaModule()
         result_module.t1 = lycoris_module.t1
         result_module.w1a = lycoris_module.w1a
@@ -429,7 +448,8 @@ def convert_lycoris(lycoris_module, sd_module):
                 'stride': sd_module.stride,
                 'padding': sd_module.padding
             }
-    elif lycoris_module.__class__.__name__ == "LycoKronModule" or lycoris_module.__class__.__name__ == "LoraKronModule" :
+    elif lycoris_module.__class__.__name__ == "LycoKronModule" or lycoris_module.__class__.__name__ == "LoraKronModule"\
+          or lycoris_module.__class__.__name__ == "NetworkModuleLokr" :
         result_module = LoraKronModule()
         result_module.w1 = lycoris_module.w1
         result_module.w1a = lycoris_module.w1a

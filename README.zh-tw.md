@@ -42,8 +42,8 @@ https://github.com/a2569875/stable-diffusion-webui-composable-lora.git
 
 本次測試於2023年5月14日完成，使用Stable Diffusion WebUI版本為[v1.2 (89f9faa)](https://github.com/AUTOMATIC1111/stable-diffusion-webui/commit/89f9faa63388756314e8a1d96cf86bf5e0663045)
 
-另一次測試於2023年6月24日完成，使用Stable Diffusion WebUI版本為[v1.4.0-RC (baf6946)](https://github.com/AUTOMATIC1111/stable-diffusion-webui/commit/baf6946e06249c5af9851c60171692c44ef633e0)。 測試中使用了自行訓練的春姬LoCon模型和C站下載的[onimaiCharactersLora](https://civitai.com/models/10767/onimai-characters-lora)模型。
-![](readme/fig12.png)
+另一次測試於2023年7月25日完成，使用Stable Diffusion WebUI版本為[v1.5.0 (a3ddf46)](https://github.com/AUTOMATIC1111/stable-diffusion-webui/commit/a3ddf464a2ed24c999f67ddfef7969f8291567be)。 測試中使用了自行訓練的《世界頂尖的暗殺者轉生為異世界貴族》蒂雅·維科尼和《公主連結》日和LoCon模型。
+![](readme/fig13.png)
 
 ## 功能
 ### 與 Composable-Diffusion 相容
