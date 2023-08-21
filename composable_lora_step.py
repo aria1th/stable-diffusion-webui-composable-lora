@@ -451,7 +451,7 @@ def get_LoRA_Controllers(prompt: str):
             Weight_Controller = LoRA_Weight_decrement()
         elif super_cmd_text.startswith("increment"):
             Weight_Controller = LoRA_Weight_increment()
-    def set_Weight_Controller(controller_list : list[LoRA_Controller_Base], the_controller : LoRA_Weight_CMD):
+    def set_Weight_Controller(controller_list : List[LoRA_Controller_Base], the_controller : LoRA_Weight_CMD):
         for i, the_item in enumerate(controller_list):
             controller_list[i].Weight_Controller = the_controller
         return controller_list
